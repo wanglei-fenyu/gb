@@ -1,0 +1,23 @@
+syntax = "proto3";
+enum CompressType {
+	CompressTypeNone = 0;
+	CompressTypeGzip = 1;
+	CompressTypeZlib = 2;
+	CompressTypeLZ4 = 3;
+}
+enum MsgMode
+{
+	Msg 		=0;			//普通的消息
+	Request 	= 1;
+	Response	= 2;
+}
+message Meta {
+
+
+	MsgMode mode = 1;
+	int32 id = 2;
+	int32 type = 3;
+	int64 method = 4;
+	int64 sequence = 5;
+	CompressType compress_type = 6;
+}

@@ -1,0 +1,107 @@
+#include "MyApp.h"
+#include "test.h"
+#include "network.h"
+
+static bool is_net_init = false;
+int MyApp::OnInit()
+{
+	log.Init(ResPath::Instance()->FindResPath("log4/test.log").c_str(), 1024 * 1024 * 1000, 10,
+		   Hlog::ASYNC, Hlog::CONSOLE_AND_FILE, Hlog::LEVEL_INFO);
+
+    gb::ClientOptions options;
+    options.keep_alive_time = -1;
+    client_.reset(new gb::Client(options));
+    Test_Register();
+
+	client_->SetCloseCallBack([](const gb::SessionPtr session) {
+        LOG_INFO("net close");
+    });
+
+	client_->SetConnnectCallBack([this](const gb::SessionPtr session) {
+        session->set_return_io_service_pool_fun([&]()-> gb::IoServicePoolPtr {
+            return client_->GetIoServicePool();
+        });
+        LOG_INFO("net connect");
+        is_net_init = true;
+        //session->StartHeartbeat(std::chrono::seconds(2));
+    });
+    
+	client_->SetReceivedCallBack(OnReceived);
+
+	auto [ip, port] = AppTypeMgr::Instance()->GetServerIpPort();
+	std::string uir = ip + ":" + port;
+    client_->Connect(gb::CONNECT_TYPE::CT_GATEWAY, uir);
+    SetIoServicePool(client_->GetIoServicePool());
+    test_http();
+    return 0;
+}
+
+int MyApp::OnStartup(gb::WorkerPtr worker)
+{
+    if (worker)
+        worker->OnStartup();
+    return 0;
+}
+
+int MyApp::OnUpdate(gb::WorkerPtr worker)
+{
+    if (worker)
+        worker->OnUpdate();
+    return 0;
+}
+
+int MyApp::OnTick(gb::WorkerPtr worker, float elapsed)
+{
+
+    if (is_net_init)
+    {
+        is_net_init = false;
+        //SendMsg1(client_);
+        SendRpc(client_);
+    }
+    if (worker)
+        worker->OnTick(elapsed);
+    return 0;
+
+}
+
+int MyApp::OnCleanup(gb::WorkerPtr worker)
+{
+    if (worker)
+        worker->OnCleanup();
+    return 0;
+}
+
+int MyApp::OnUnInit()
+{
+    client_->Shutdown();
+    log.UnInit();
+    return 0;
+}
+
+void MyApp::test_http()
+{
+    using namespace gb::http;
+	auto [ip, port] = AppTypeMgr::Instance()->GetServerIpPort(UIR_TYPE::UT_WIN_HTTP);
+    http_client     = std::make_shared<HttpClient>(ip + ":" + port);
+    
+    std::string json_string = "{\"firstName\": \"John\",\"lastName\": \"Smith\",\"age\": 25}";
+
+  // Synchronous request examples
+  try {
+    //auto r1 =  http_client->request("GET", "/match/123");
+      std::ostringstream os;
+    //  os << r1->content.rdbuf();
+    //  LOG_INFO("GET: {}", os.str());
+
+    auto r2 = http_client->request("POST", "/string", json_string);
+    os.clear();
+    os << r2->content.rdbuf();
+    LOG_INFO("POST: {}", os.str());
+  }
+  catch(const gb::http::system_error &e) {
+    LOG_INFO("Client request error: {}", e.what());
+  }
+  http_client->io_service->run();
+
+}
