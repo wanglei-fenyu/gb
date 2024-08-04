@@ -215,5 +215,64 @@ async_simple::coro::Lazy<T> CoRpcCall(RpcCall& call, std::string method, Args...
 	}
 }
 
+
+
+template<typename... Rets>
+struct CoRpcImpl
+{
+	using ResultType = std::conditional_t<sizeof...(Rets) == 1, typename std::tuple_element<0, std::tuple<Rets...>>::type, std::tuple<Rets...>>;
+
+	template<typename... Args>
+    static async_simple::coro::Lazy<ResultType> execute(RpcCall& call, std::string method, Args... args) noexcept {
+		co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
+			call.SetCallBack([&, h](ResultType r) { 
+				result = std::move(r); 
+				h.resume(); 
+			});
+			gb::Call(call, method, args...);
+		}};
+    }
+};
+
+//默认返回值类型为void
+template<>
+struct CoRpcImpl<void>
+{
+	template<typename... Args>
+	static async_simple::coro::Lazy<void> execute(RpcCall& call, std::string method, Args... args) noexcept {
+		co_return co_await RpcCallAwaiter<void>{[&](std::coroutine_handle<> h) {
+			call.SetCallBack([&,h]() { h.resume(); });
+			gb::Call(call, method, args...);
+			}
+		};
+	}
+};
+
+
+
+template <typename... Rets>
+struct CoRpcSelector
+{
+private:
+    // Helper for single type case
+    template <typename T>
+    using SingleTypeSelector = std::conditional_t<
+        std::is_void_v<T>,
+        CoRpcImpl<void>,
+        CoRpcImpl<T>>;
+
+public:
+    using type = std::conditional_t<
+        (sizeof...(Rets) > 1),
+        CoRpcImpl<Rets...>,
+        SingleTypeSelector<typename std::tuple_element<0, std::tuple<Rets...>>::type>>;
+};
+
+template<typename... Rets>
+using CoRpc = typename CoRpcSelector<Rets...>::type;
+
+
+
+
 NAMESPACE_END
 

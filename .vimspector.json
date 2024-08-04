@@ -1,0 +1,43 @@
+{
+  "configurations": {
+    "cpp:launch": {
+      "adapter": "gdb",
+      "configuration": {
+        "name": "cpp:launch",
+        "request": "launch",
+        "type": "cppdbg",
+        "program": "${workspaceFolder}/../bin/linux/Release/test",
+        "args": [],
+        "cwd": "${workspaceRoot}",
+        "environment": [],
+        "externalConsole": true,
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    },
+    "cpp:attach": {
+      "adapter": "gdb",
+      "configuration": {
+        "name": "cpp:attach",
+        "request": "attach",
+        "type": "cppdbg",
+        "program": "${workspaceFolder}/../bin/linux/Release/test",
+        "MIMode": "gdb",
+        "setupCommands": [
+          {
+            "description": "Enable pretty-printing for gdb",
+            "text": "-enable-pretty-printing",
+            "ignoreFailures": true
+          }
+        ]
+      }
+    }
+  }
+}
+

@@ -16,10 +16,10 @@ void hello(TestMsg& msg);
 //	gb::RpcCall call;
 //	call.SetSession(session);
 //	//co_await Net::CoRpcCall<std::string, std::string>(call, "lua_rpc_test_args", "helo");
-//	auto str = co_await gb::CoRpcCall<std::string,std::string>(call,"lua_rpc_test_args","helo");
+//	auto str = co_await gb::CoRpcCall<std::string>(call,"lua_rpc_test_args","helo");
 //	LOG_INFO("CORO_TEST  {}", str);
 //    
-//	auto [a, b] = co_await gb::CoRpcCall<std::tuple<int, std::string>,int,std::string>(call, "test_ret_args", 1, "world");
+//	auto [a, b] = co_await gb::CoRpcCall<std::tuple<int, std::string>>(call, "test_ret_args", 1, "world");
 //	LOG_INFO("CORO_TEST_2  {} {}", a,b);
 //
 //}

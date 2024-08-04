@@ -3,6 +3,24 @@
 #include "network.h"
 
 static bool is_net_init = false;
+
+
+
+
+static async_simple::coro::Lazy<void> test_coro_2(const gb::SessionPtr& session)
+{
+	gb::RpcCall call;
+	call.SetSession(session);
+	//co_await Net::CoRpcCall<std::string, std::string>(call, "lua_rpc_test_args", "helo");
+    int str = co_await CoRpc<int>::execute(call, "square",10000);
+	LOG_INFO("CORO_TEST  {}", str);
+    
+    auto [a,b] = co_await CoRpc<int,std::string>::execute(call, "test_ret_args", 2, "world");
+	LOG_INFO("CORO_TEST_2  {} {}", a,b);
+
+}
+
+
 int MyApp::OnInit()
 {
 	log.Init(ResPath::Instance()->FindResPath("log4/test.log").c_str(), 1024 * 1024 * 1000, 10,
@@ -57,7 +75,9 @@ int MyApp::OnTick(gb::WorkerPtr worker, float elapsed)
     {
         is_net_init = false;
         //SendMsg1(client_);
-        SendRpc(client_);
+        //SendRpc(client_);
+        async_simple::coro::syncAwait(test_coro_2(client_->GetSession(gb::CONNECT_TYPE::CT_GATEWAY)));
+
     }
     if (worker)
         worker->OnTick(elapsed);
