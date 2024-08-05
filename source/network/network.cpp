@@ -4,7 +4,7 @@
 NAMESPACE_BEGIN(gb)
 using ListenMap = typename std::unordered_map<uint64_t,net_listen_fun>;
 using RpcInterfaceMap = typename  std::map<uint64_t, rpc_listen_fun>;
-using RpcCallerMap = typename std::map<int,std::map<uint64_t, RpcCall>>;
+using RpcCallerMap = typename std::map<int,std::map<uint64_t, RpcCallPtr&>>;
 //using RpcCallerMap = typename std::map<uint64_t, RpcCall>;
 //using RpcCallerMap = typename std::map<uint32_t,std::map<uint64_t, RpcCall>>;
 static thread_local ListenMap gs_ListenFunctionMap;
@@ -58,8 +58,12 @@ void ListenOption(int type, int id, net_listen_fun f, std::string protoName)
 	auto p_FunsIt = gs_ListenFunctionMap[key] = f;
 }
 
-void _Call(Meta & meta, RpcCall call)
+void _Call(Meta& meta, RpcCallPtr call)
 {
+    if (!call)
+    {
+        return;
+    }
     uint32_t thread_id  = uint32_t(meta.sequence() >> 32);
     auto&    thread_map = gs_RpcCallerMap[thread_id];
     if (!thread_map.insert({meta.sequence(), call}).second)
@@ -69,11 +73,15 @@ void _Call(Meta & meta, RpcCall call)
     //开启计时器
 
     //调用回调
-    call.Call(meta);
+    call->Call(meta);
 }
 
-void _Call(Meta& meta, RpcCall call,std::vector<uint8_t>& data)
+void _Call(Meta& meta, RpcCallPtr call, std::vector<uint8_t>& data)
 {
+    if (!call)
+    {
+        return;
+    }
     uint32_t thread_id  = uint32_t(meta.sequence() >> 32);
     auto&    thread_map = gs_RpcCallerMap[thread_id];
     if (!thread_map.insert({meta.sequence(), call}).second)
@@ -83,11 +91,15 @@ void _Call(Meta& meta, RpcCall call,std::vector<uint8_t>& data)
     //开启计时器
 
     //调用回调
-    call.Call(meta, data);
+    call->Call(meta, data);
 }
 
-void _Call(Meta & meta, RpcCall call, std::vector<uint8_t>&& data)
+void _Call(Meta& meta, RpcCallPtr call, std::vector<uint8_t>&& data)
 {
+    if (!call)
+    {
+        return;
+    }
     uint32_t thread_id  = uint32_t(meta.sequence() >> 32);
     auto&    thread_map = gs_RpcCallerMap[thread_id];
     if (!thread_map.insert({meta.sequence(), call}).second)
@@ -97,18 +109,22 @@ void _Call(Meta & meta, RpcCall call, std::vector<uint8_t>&& data)
     //开启计时器
 
     //调用回调
-    call.Call(meta, data);
+    call->Call(meta, data);
 
 }
-void _Call(RpcCall call, std::string method, sol::variadic_args& args)
+void _Call(RpcCallPtr call, std::string method, sol::variadic_args& args)
 {
+    if (!call)
+    {
+        return;
+    }
     Meta meta;
     uint64_t    method_key = MD5::MD5Hash64(method.c_str());
     meta.set_method(method_key);
     uint64_t seq_id = GetSequence();
     meta.set_sequence(seq_id);
     meta.set_mode(MsgMode::Request);
-    call.SetId(seq_id);
+    call->SetId(seq_id);
     if (args.size() > 0)
     {
         std::vector<uint8_t> data = gb::msgpack::pack(args);
@@ -120,6 +136,17 @@ void _Call(RpcCall call, std::string method, sol::variadic_args& args)
     }
 }
 
+
+void RpcCancel(int64_t seq_id)
+{
+    uint32_t thread_id  = uint32_t(seq_id >> 32);
+    auto    thread_map = gs_RpcCallerMap.find(thread_id);
+    if (thread_map == gs_RpcCallerMap.end())
+        return;
+    auto thread_rpc = thread_map->second.find(seq_id);
+    if (thread_rpc != thread_map->second.end())
+        thread_map->second.erase(thread_rpc);
+}
 
 void RegisterOption(std::string method, rpc_listen_fun fn)
 {
@@ -191,8 +218,8 @@ void Dispatch(const SessionPtr& session, const ReadBufferPtr& buffer, Meta& meta
 			if (it == thread_map.end())
 				return;
 
-			if(it->second.HasCallBack())
-				it->second.Done(session,buffer,meta,meta_size,data_size);
+			if(it->second && it->second->HasCallBack())
+				it->second->Done(session,buffer,meta,meta_size,data_size);
 			thread_map.erase(it);
 		}
 		break;
@@ -242,6 +269,7 @@ gb::IoServicePoolPtr net_get_io_service_pool()
 {
     return gs_Server->GetIoServicePool();
 }
+
 
 //gb::IoServicePoolPtr net_GetIoServicePool()
 //{

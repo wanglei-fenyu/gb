@@ -26,7 +26,7 @@ static void register_net(std::shared_ptr<Script>& scriptPtr)
 											}
 										});
 	network["Register"]	= [](std::string method, sol::function f) { gb::Register(method, f); };
-	network["Call"]		= [](RpcCall call,std::string method,sol::variadic_args args) {gb::Call(call, method, args);};
+	network["Call"]		= [](RpcCallPtr call,std::string method,sol::variadic_args args) {gb::Call(call, method, args);};
 
 
 	scriptPtr->new_usertype<Session>("Session");

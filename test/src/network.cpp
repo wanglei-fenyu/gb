@@ -3,7 +3,7 @@
 #include "network/buffer/buffer.h"
 using ListenMap = typename std::unordered_map<uint64_t,gb::net_listen_fun>;
 using RpcInterfaceMap = typename  std::map<uint64_t, gb::rpc_listen_fun>;
-using RpcCallerMap = typename std::map<uint64_t, gb::RpcCall>;
+using RpcCallerMap = typename std::map<uint64_t, gb::RpcCallPtr>;
 
 static ListenMap gs_ListenFunctionMap;
 static RpcCallerMap gs_RpcCallerMap;
@@ -24,7 +24,7 @@ void Listen_Option(int type, int id, gb::net_listen_fun f, std::string protoName
     auto     p_FunsIt = gs_ListenFunctionMap[key] = f;
 }
 
-void Call(Meta & meta, gb::RpcCall call)
+void Call(Meta& meta, gb::RpcCallPtr call)
 {
 	if (!gs_RpcCallerMap.insert({ meta.sequence(),call }).second)
 	{
@@ -34,10 +34,10 @@ void Call(Meta & meta, gb::RpcCall call)
 	//开启计时器
 
 	//调用回调
-	call.Call(meta);
+	call->Call(meta);
 }
 
-void Call(Meta& meta, gb::RpcCall call,std::vector<uint8_t>& data)
+void Call(Meta& meta, gb::RpcCallPtr call,std::vector<uint8_t>& data)
 {
 	if (!gs_RpcCallerMap.insert({ meta.sequence(),call }).second)
 	{
@@ -47,10 +47,10 @@ void Call(Meta& meta, gb::RpcCall call,std::vector<uint8_t>& data)
 	//开启计时器
 
 	//调用回调
-	call.Call(meta,data);
+	call->Call(meta,data);
 }
 
-void Call(Meta & meta, gb::RpcCall call, std::vector<uint8_t>&& data)
+void Call(Meta & meta, gb::RpcCallPtr call, std::vector<uint8_t>&& data)
 {
 	if (!gs_RpcCallerMap.insert({meta.sequence(), call}).second)
 	{
@@ -59,10 +59,10 @@ void Call(Meta & meta, gb::RpcCall call, std::vector<uint8_t>&& data)
 	//开启计时器
 
 	//调用回调
-	call.Call(meta, data);
+	call->Call(meta, data);
 
 }
-void Call(gb::RpcCall call, std::string method, sol::variadic_args& args)
+void Call(gb::RpcCallPtr call, std::string method, sol::variadic_args& args)
 {
 	Meta meta;
 	uint64_t method_key = MD5::MD5Hash64(method.c_str());
@@ -70,7 +70,7 @@ void Call(gb::RpcCall call, std::string method, sol::variadic_args& args)
 	uint64_t seq_id = GetSequence();
 	meta.set_sequence(seq_id);
 	meta.set_mode(MsgMode::Request);
-	call.SetId(seq_id);
+	call->SetId(seq_id);
 	if( args.size() > 0)
 	{
 		std::vector<uint8_t> data =  gb::msgpack::pack(args);
@@ -130,7 +130,7 @@ static void Dispatch(const gb::SessionPtr& session, const gb::ReadBufferPtr& buf
 		if (it == gs_RpcCallerMap.end())
 			return;
 
-		it->second.Done(session, buffer,meta,meta_size,data_size);
+		it->second->Done(session, buffer,meta,meta_size,data_size);
 		gs_RpcCallerMap.erase(it);
 
 		break;

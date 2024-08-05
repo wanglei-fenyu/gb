@@ -13,6 +13,13 @@ constexpr int64_t kRpcdefaultTimeout = 1000 * 5; //5秒
 typedef rpc_listen_fun rpc_done_call;
 
 
+enum class RpcErrorCode {
+    None = 0,
+    Timeout = 1,
+    Cancel = 2,
+    InvalidRequest = 3,
+};
+
 class RpcCall : public std::enable_shared_from_this<RpcCall>
 {
 public:
@@ -22,28 +29,33 @@ public:
     uint64_t                  GetId() { return id_; }
     void                      SetTimeout(std::function<void()> timeout_fun, int64_t timeout = kRpcdefaultTimeout);
     void                      SetTimeout(int64_t timeout);
-    void                      SetTimeId(int64_t timeid) { timer_id_ = timeid; }
-    int64_t                   GetTimeId() { return timer_id_; }
-    void                      SetSession(const std::shared_ptr<Session>& session) { session_ = session; }
+    void                      SetSession(const std::shared_ptr<Session>& session);
     std::shared_ptr<Session>& GetSession() { return session_; }
     void                      Call(Meta& meta);
     void                      Call(Meta& meta, std::vector<uint8_t>& data);
-    void                      SetCancel(bool cancel) { is_cancel_ = cancel; }
+    void                      Cancel();
     bool                      HasCallBack();
     bool                      HasSession();
     void                      Done(const SessionPtr& session, const ReadBufferPtr& buffer, Meta& meta, int meta_size, int64_t data_size) const;
-
+    bool                      IsError();
+    RpcErrorCode              ErrorCode();
     template <class F>
     void SetCallBack(F f);
 
 private:
+    void StartTimer();
+
+private:
     uint64_t                  id_;             //唯一标识
-    std::chrono::milliseconds timeout_;        //超时时间
-    int64_t                   timer_id_;       //计时器id
+    //std::chrono::milliseconds timeout_;        //超时时间
+    //int64_t                   timer_id_;       //计时器id
+    mutable std::optional<Asio::steady_timer> timer_;
+    std::chrono::steady_clock::duration timeout_;       //使用毫秒
     std::function<void()>     timeout_func_;   //超时回调
     bool                      is_cancel_;      //是否已经取消
     std::shared_ptr<Session>  session_;        //网络会话
     rpc_done_call             done_call_bcak_; //回调函数
+    RpcErrorCode              error_code_;     //错误码
 };
 
 template <class F>
@@ -66,4 +78,6 @@ inline void RpcCall::SetCallBack(F f)
     done_call_bcak_ = func;
 }
 
+
+using RpcCallPtr = std::shared_ptr<RpcCall>;
 } // namespace gb

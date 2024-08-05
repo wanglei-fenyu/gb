@@ -22,13 +22,13 @@ void Listen(int type, int id, F f, std::string protoName = "")
 }
 
 uint64_t GetSequence();
-void     Call(Meta& meta, gb::RpcCall call);
-void     Call(Meta& meta, gb::RpcCall call, std::vector<uint8_t>& data);
-void     Call(Meta& meta, gb::RpcCall call, std::vector<uint8_t>&& data);
-void     Call(gb::RpcCall call, std::string method, sol::variadic_args& args);
+void     Call(Meta& meta, gb::RpcCallPtr call);
+void     Call(Meta& meta, gb::RpcCallPtr call, std::vector<uint8_t>& data);
+void     Call(Meta& meta, gb::RpcCallPtr call, std::vector<uint8_t>&& data);
+void     Call(gb::RpcCallPtr call, std::string method, sol::variadic_args& args);
 
 template <typename... Args>
-void Call(gb::RpcCall call, std::string method, Args&&... args)
+void Call(gb::RpcCallPtr call, std::string method, Args&&... args)
 {
     Meta meta;
     uint64_t    method_key = MD5::MD5Hash64(method.c_str());
@@ -37,7 +37,7 @@ void Call(gb::RpcCall call, std::string method, Args&&... args)
     meta.set_sequence(seq_id);
     meta.set_compress_type(CompressTypeZlib);
     meta.set_mode(MsgMode::Request);
-    call.SetId(seq_id);
+    call->SetId(seq_id);
     if constexpr (sizeof...(args) > 0)
     {
         std::vector<uint8_t> data = gb::msgpack::pack<Args&&...>(std::forward<Args>(args)...);
@@ -104,24 +104,26 @@ struct CoRpcImpl
 	using ResultType = std::conditional_t<sizeof...(Rets) == 1, typename std::tuple_element<0, std::tuple<Rets...>>::type, std::tuple<Rets...>>;
 
 	template<typename... Args>
-    static async_simple::coro::Lazy<ResultType> execute(gb::RpcCall& call, std::string method, Args... args) noexcept {
+    static async_simple::coro::Lazy<ResultType> execute(gb::RpcCallPtr call, std::string method, Args... args) noexcept {
         if constexpr (sizeof...(Rets) == 1)
         {
 			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
-				call.SetCallBack([&, h](ResultType r) { 
+				call->SetCallBack([&, h](ResultType r) { 
 					result = std::move(r); 
 					h.resume(); 
 				});
+				call->SetTimeout([&,h]() { h.resume(); });
 				::Call(call, method, args...);
 			}};
         }
         else
         {
 			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
-				call.SetCallBack([&, h](Rets... r) { 
+				call->SetCallBack([&, h](Rets... r) { 
 					result = std::make_tuple(std::move(r)...);
 					h.resume(); 
 				});
+				call->SetTimeout([&,h]() { h.resume(); });
 				::Call(call, method, args...);
 			}};
         }
@@ -133,9 +135,10 @@ template<>
 struct CoRpcImpl<void>
 {
 	template<typename... Args>
-	static async_simple::coro::Lazy<void> execute(gb::RpcCall& call, std::string method, Args... args) noexcept {
+	static async_simple::coro::Lazy<void> execute(gb::RpcCallPtr call, std::string method, Args... args) noexcept {
 		co_return co_await RpcCallAwaiter<void>{[&](std::coroutine_handle<> h) {
-			call.SetCallBack([&,h]() { h.resume(); });
+			call->SetCallBack([&,h]() { h.resume(); });
+            call->SetTimeout([&,h]() { h.resume(); });
 			::Call(call, method, args...);
 			}
 		};

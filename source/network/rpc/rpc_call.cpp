@@ -3,41 +3,80 @@
 
 namespace gb
 {
-
-
-RpcCall::RpcCall()
+extern void RpcCancel(int64_t seq_id);
+RpcCall::RpcCall() :
+    id_(0), timeout_(std::chrono::milliseconds(kRpcdefaultTimeout)), timeout_func_(nullptr), is_cancel_(false), session_(nullptr), done_call_bcak_(nullptr), timer_(std::nullopt), error_code_(RpcErrorCode::None)
 {
 }
 
 RpcCall::~RpcCall()
 {
+    if (timer_ && timer_->expires_from_now() != std::chrono::steady_clock::duration::zero()) {
+        timer_->cancel();
+    }
 }
 
 void RpcCall::SetTimeout(std::function<void()> timeout_fun, int64_t timeout)
 {
-    timeout_      = std::chrono::milliseconds(timeout);
     timeout_func_ = timeout_fun;
+    SetTimeout(timeout);
 };
 
 void RpcCall::SetTimeout(int64_t timeout)
 {
     timeout_ = std::chrono::milliseconds(timeout);
-    Asio::steady_timer timer(session_->ioservice(),timeout_);
+    if (!timer_ && HasSession()) {
+         timer_ = Asio::steady_timer(GetSession()->ioservice());
+    }
+}
+
+void RpcCall::SetSession(const std::shared_ptr<Session>& session)
+{
+    session_ = session;
+    if (!timer_ && session_) {
+         timer_ = Asio::steady_timer(GetSession()->ioservice());
+    }
 }
 
 void RpcCall::Call(Meta& meta)
-{
+{   
+    error_code_ = RpcErrorCode::None;
     if (!session_)
+    {
+        error_code_ = RpcErrorCode::InvalidRequest;
+        RpcCancel(id_);
         return;
-        session_->Send(&meta);
-}
-void RpcCall::Call(Meta& meta, std::vector<uint8_t>& data)
-{
-    if (!session_)
-        return;
-        session_->Send(&meta, data);
+    }
+    StartTimer();
+    session_->Send(&meta);
 }
 
+void RpcCall::Call(Meta& meta, std::vector<uint8_t>& data)
+{
+    error_code_ = RpcErrorCode::None;
+    if (!session_)
+    {
+        error_code_ = RpcErrorCode::InvalidRequest;
+        RpcCancel(id_);
+        return;
+    }
+    StartTimer();
+	session_->Send(&meta, data);
+}
+
+
+void RpcCall::Cancel()
+{
+    is_cancel_ = true;
+    if (is_cancel_)
+    {
+		if (timer_ && timer_->expires_from_now() != std::chrono::steady_clock::duration::zero()) {
+			timer_->cancel();
+		}
+        RpcCancel(id_);
+    }
+
+}
 
 bool RpcCall::HasCallBack()
 {
@@ -55,7 +94,48 @@ bool RpcCall::HasSession()
 
 void RpcCall::Done(const SessionPtr& session, const ReadBufferPtr& buffer, Meta& meta, int meta_size, int64_t data_size) const
 {
+    // 取消定时器
+    if (timer_)
+    {
+        timer_->cancel();
+    }
+
+
+    if (is_cancel_)
+        return;
     done_call_bcak_(session,buffer,meta, meta_size,data_size);
+}
+
+bool RpcCall::IsError()
+{
+    return error_code_ != RpcErrorCode::None;
+}
+
+RpcErrorCode RpcCall::ErrorCode() 
+{
+    return error_code_;
+}
+
+void RpcCall::StartTimer()
+{
+    if (!timer_)
+    {
+        error_code_ = RpcErrorCode::InvalidRequest;
+        return;
+    }
+    is_cancel_ = false;
+    timer_->expires_after(timeout_);
+	timer_->async_wait([self = shared_from_this()](const Error_code& error) {
+        if (self->is_cancel_ || error == Asio::error::operation_aborted) {
+            return;
+        }
+		RpcCancel(self->id_);
+		LOG_WARN("RPC timeout {}", self->id_);
+		if (!error && !self->is_cancel_ && self->timeout_func_) {
+				self->timeout_func_();
+				self->error_code_ = RpcErrorCode::Timeout;
+		}
+	});
 }
 
 } // namespace gb

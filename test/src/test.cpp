@@ -31,9 +31,9 @@ void SendMsg1(std::shared_ptr<gb::Client> client)
 
 void SendRpc(std::shared_ptr<gb::Client> client)
 {
-    gb::RpcCall call;
-    call.SetSession(client->GetSession(gb::CONNECT_TYPE::CT_GATEWAY));
-    call.SetCallBack([](int a,std::string str) {
+    gb::RpcCallPtr call = std::make_shared<gb::RpcCall>();
+    call->SetSession(client->GetSession(gb::CONNECT_TYPE::CT_GATEWAY));
+    call->SetCallBack([](int a,std::string str) {
         LOG_INFO("test lua reply: {} {}",a, str);
     });
     ::Call(call, "test_ret_args", 2, "asadsadsadsdaefasgajf中国人大大撒大苏打 ddbgasufgsajbasadsadsadsdaefasgajf中国人大大撒大苏打 ddbgasufgsajbfasvfafasvfa");
@@ -43,18 +43,18 @@ void SendRpc(std::shared_ptr<gb::Client> client)
 
 
 
-async_simple::coro::Lazy<> test_coro(gb::SessionPtr& session)
-{
-	gb::RpcCall call;
-	call.SetSession(session);
-	//co_await Net::CoRpcCall<std::string, std::string>(call, "lua_rpc_test_args", "helo");
-	auto str = co_await gb::CoRpcCall<std::string>(call,"lua_rpc_test_args","helo");
-	LOG_INFO("CORO_TEST  {}", str);
-    
-	auto [a, b] = co_await gb::CoRpcCall<std::tuple<int, std::string>>(call, "test_ret_args", 1, "world");
-	LOG_INFO("CORO_TEST_2  {} {}", a,b);
-
-}
+//async_simple::coro::Lazy<> test_coro(gb::SessionPtr& session)
+//{
+//	gb::RpcCall call;
+//	call.SetSession(session);
+//	//co_await Net::CoRpcCall<std::string, std::string>(call, "lua_rpc_test_args", "helo");
+//	auto str = co_await gb::CoRpcCall<std::string>(call,"lua_rpc_test_args","helo");
+//	LOG_INFO("CORO_TEST  {}", str);
+//    
+//	auto [a, b] = co_await gb::CoRpcCall<std::tuple<int, std::string>>(call, "test_ret_args", 1, "world");
+//	LOG_INFO("CORO_TEST_2  {} {}", a,b);
+//
+//}
 
 
 //async_simple::coro::Lazy<> test_coro_2(gb::SessionPtr& session)
