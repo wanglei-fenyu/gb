@@ -15,7 +15,8 @@ public:
     void                            Send(const std::vector<uint8_t>& data);
     const std::shared_ptr<Session>& GetSession() const;
     bool                            Valid() const;
-
+    
+    void Invoke();
     template <typename... Args>
     void Invoke(Args&... args);
 

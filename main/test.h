@@ -7,7 +7,7 @@ void hello(const std::shared_ptr<gb::Session>& session);
 
 void World(const std::shared_ptr<gb::Session>& session, TestMsg& msg);
 
-void test_rpc();
+void test_rpc(gb::RpcReply reply);
 
 void test_rpc2(int a);
 

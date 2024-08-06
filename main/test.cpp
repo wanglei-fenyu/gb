@@ -15,9 +15,10 @@ void World(const std::shared_ptr<gb::Session>& session,TestMsg& msg)
 	LOG_INFO("wrold {}",msg.msg())
 }
 
-void test_rpc()
+void test_rpc(gb::RpcReply reply)
 {
-	LOG_INFO("test_rpc")
+    LOG_INFO("test_rpc");
+    reply.Invoke("");
 }
 
 
@@ -51,7 +52,7 @@ void Test_Register(gb::IoServicePoolPtr pool)
 			
 	pool->Post([]()->void{
 		//gb::Listen(1, 2, World);
-		gb::Register("test_rpc", test_rpc);
+        gb::Register("test_rpc", test_rpc);
 		gb::Register("test_rpc2", test_rpc2);
 		gb::Register("square", square);
 		gb::Register("test_ret_args", test_ret_args);

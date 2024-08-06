@@ -72,11 +72,6 @@ public:
 
 	T await_resume() { return std::move(resoult_); }
 	
-	static RpcCallAwaiter get_return_object_on_allocation_failure() noexcept
-    {
-        return RpcCallAwaiter([](std::coroutine_handle<>, T&) {
-        });
-    }
 
 private:
 	T resoult_;
@@ -101,11 +96,6 @@ public:
 	}
 	void await_resume() { return; }
 
-	static RpcCallAwaiter get_return_object_on_allocation_failure() noexcept
-    {
-        return RpcCallAwaiter([](std::coroutine_handle<>) {
-        });
-    }
 private:
 	private_call private_call_;
 };
@@ -121,7 +111,7 @@ struct CoRpc
         {
 			if constexpr (std::is_void_v<ResultType>)
 			{
-                co_return co_await RpcCallAwaiter<void>{[&](std::coroutine_handle<> h) {
+                co_return co_await RpcCallAwaiter<void>{[&](std::coroutine_handle<> h)noexcept {
                         call->SetCallBack([&, h]() { h.resume(); });
                         call->SetTimeout([&, h]() { h.resume(); });
                         ::Call(call, method, args...);
@@ -130,7 +120,7 @@ struct CoRpc
 			}
 			else
 			{
-				co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
+				co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result)noexcept {
 					call->SetCallBack([&, h](ResultType r) { 
 						result = std::move(r); 
 						h.resume(); 
@@ -142,7 +132,7 @@ struct CoRpc
         }
         else
         {
-			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
+			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result)noexcept {
 				call->SetCallBack([&, h](T1 t,Rets... r) { 
 					result = std::make_tuple(std::move(t),std::move(r)...);
 					h.resume(); 

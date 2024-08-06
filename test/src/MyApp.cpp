@@ -7,7 +7,7 @@ static bool is_net_init = false;
 
 
 
-async_simple::coro::Lazy<int> test_coro_2(const gb::SessionPtr& session)
+async_simple::coro::Lazy<> test_coro_2(const gb::SessionPtr& session)
 {
 	gb::RpcCallPtr call = std::make_shared<gb::RpcCall>();
 	call->SetSession(session);
@@ -17,7 +17,7 @@ async_simple::coro::Lazy<int> test_coro_2(const gb::SessionPtr& session)
     LOG_INFO("CORO_TEST  {}", str);
 
     auto [a, b] = co_await CoRpc<int, std::string>::execute(call, "test_ret_args", 2, "world");
-    LOG_INFO("CORO_TEST_2  {} {}", a, b);
+    LOG_INFO("coro_test_2  {} {}", a, b);
 }
 
 

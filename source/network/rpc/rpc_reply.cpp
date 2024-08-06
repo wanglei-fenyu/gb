@@ -40,6 +40,16 @@ void RpcReply::Invoke(sol::variadic_args args)
     Send(data);
 }
 
+
+void RpcReply::Invoke()
+{
+    if (!Valid())
+        return;
+    std::vector<uint8_t> data;
+    Send(data);
+
+}
+
 Meta& RpcReply::GetMeta()
 {
     return meta_;
