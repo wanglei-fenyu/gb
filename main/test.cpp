@@ -54,7 +54,7 @@ void Test_Register(gb::IoServicePoolPtr pool)
 		gb::Register("test_rpc", test_rpc);
 		gb::Register("test_rpc2", test_rpc2);
 		gb::Register("square", square);
-		//gb::Register("test_ret_args", test_ret_args);
+		gb::Register("test_ret_args", test_ret_args);
 
     });
 }

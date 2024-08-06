@@ -7,16 +7,17 @@ static bool is_net_init = false;
 
 
 
-static async_simple::coro::Lazy<void> test_coro_2(const gb::SessionPtr& session)
+async_simple::coro::Lazy<int> test_coro_2(const gb::SessionPtr& session)
 {
 	gb::RpcCallPtr call = std::make_shared<gb::RpcCall>();
 	call->SetSession(session);
+    co_await CoRpc<>::execute(call, "test_rpc");
+
     int str = co_await CoRpc<int>::execute(call, "square", 10000);
     LOG_INFO("CORO_TEST  {}", str);
-    
+
     auto [a, b] = co_await CoRpc<int, std::string>::execute(call, "test_ret_args", 2, "world");
     LOG_INFO("CORO_TEST_2  {} {}", a, b);
-
 }
 
 

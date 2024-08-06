@@ -293,7 +293,7 @@ struct RpcFunctionaTraits<R (C::*)() const, F>
 {
     static rpc_listen_fun make(F f)
     {
-        return [f](const std::shared_ptr<Session>& session, Meta& meta, const std::vector<uint8_t>& data) -> void {
+        return [f](const SessionPtr& session, const ReadBufferPtr& buffer, Meta& meta, int meta_size, int64_t data_size) -> void {
             f();
         };
     }

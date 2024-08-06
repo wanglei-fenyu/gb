@@ -147,6 +147,51 @@ private:
 	private_call private_call_;
 };
 
+
+
+template <typename T1 = void,typename... Rets>
+struct CoRpc
+{
+    using ResultType = std::conditional_t<sizeof...(Rets) == 0, T1, std::tuple<T1,Rets...>>;
+	template<typename... Args>
+    static async_simple::coro::Lazy<ResultType> execute(gb::RpcCallPtr call, std::string method, Args... args) noexcept {
+        if constexpr ((sizeof...(Rets) == 0) )
+        {
+			if constexpr (std::is_void_v<ResultType>)
+			{
+                co_return co_await RpcCallAwaiter<void>{[&](std::coroutine_handle<> h) {
+					call->SetCallBack([&, h]() { h.resume(); });
+					call->SetTimeout([&, h]() { h.resume(); });
+                    gb::Call(call, method, std::forward<Args>(args)...);
+                    }};
+
+			}
+			else
+			{
+				co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
+					call->SetCallBack([&, h](ResultType r) { 
+						result = std::move(r); 
+						h.resume(); 
+					});
+					call->SetTimeout([&,h]() { h.resume(); });
+                    gb::Call(call, method, std::forward<Args>(args)...);
+				}};
+			}
+        }
+        else
+        {
+			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
+				call->SetCallBack([&, h](T1 t,Rets... r) { 
+					result = std::make_tuple(std::move(t),std::move(r)...);
+					h.resume(); 
+				});
+				call->SetTimeout([&,h]() { h.resume(); });
+                gb::Call(call, method, std::forward<Args>(args)...);
+			}};
+        }
+    }
+};
+
 //template <typename... Args>
 //void ProcessTuple(std::tuple<Args...>& tup)
 //{
@@ -267,77 +312,79 @@ private:
 //};
 
 
-
-template<typename... Rets>
-struct CoRpcImpl
-{
-	using ResultType = std::conditional_t<sizeof...(Rets) == 1, typename std::tuple_element<0, std::tuple<Rets...>>::type, std::tuple<Rets...>>;
-
-	template<typename... Args>
-    static async_simple::coro::Lazy<ResultType> execute(gb::RpcCallPtr call, std::string method, Args... args) noexcept {
-        if constexpr (sizeof...(Rets) == 1)
-        {
-			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
-				call->SetCallBack([&, h](ResultType r) { 
-					result = std::move(r); 
-					h.resume(); 
-				});
-				call->SetTimeout([&,h]() { h.resume(); });
-                gb::Call(call, method, std::forward<Args>(args)...);
-			}};
-        }
-        else
-        {
-			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
-				call->SetCallBack([&, h](Rets... r) { 
-					result = std::make_tuple(std::move(r)...);
-					h.resume(); 
-				});
-				call->SetTimeout([&,h]() { h.resume(); });
-                gb::Call(call, method, std::forward<Args>(args)...);
-			}};
-        }
-    }
-};
-
-//默认返回值类型为void
-template<>
-struct CoRpcImpl<void>
-{
-	template<typename... Args>
-	static async_simple::coro::Lazy<void> execute(gb::RpcCallPtr call, std::string method, Args... args) noexcept {
-		co_return co_await RpcCallAwaiter<void>{[&](std::coroutine_handle<> h) {
-			call->SetCallBack([&,h]() { h.resume(); });
-            call->SetTimeout([&,h]() { h.resume(); });
-            gb::Call(call, method, std::forward<Args>(args)...);
-			}
-		};
-	}
-};
-
-
-
-template <typename... Rets>
-struct CoRpcSelector
-{
-private:
-    // Helper for single type case
-    template <typename T>
-    using SingleTypeSelector = std::conditional_t<
-        std::is_void_v<T>,
-        CoRpcImpl<void>,
-        CoRpcImpl<T>>;
-
-public:
-    using type = std::conditional_t<
-        (sizeof...(Rets) > 1),
-        CoRpcImpl<Rets...>,
-        SingleTypeSelector<typename std::tuple_element<0, std::tuple<Rets...>>::type>>;
-};
-
-template<typename... Rets>
-using CoRpc = typename CoRpcSelector<Rets...>::type;
-
+//
+//template<typename... Rets>
+//struct CoRpcImpl
+//{
+//	using ResultType = std::conditional_t<sizeof...(Rets) == 1, typename std::tuple_element<0, std::tuple<Rets...>>::type, std::tuple<Rets...>>;
+//
+//	template<typename... Args>
+//    static async_simple::coro::Lazy<ResultType> execute(gb::RpcCallPtr call, std::string method, Args... args) noexcept {
+//        if constexpr (sizeof...(Rets) == 1)
+//        {
+//			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
+//				call->SetCallBack([&, h](ResultType r) { 
+//					result = std::move(r); 
+//					h.resume(); 
+//				});
+//				call->SetTimeout([&,h]() { h.resume(); });
+//                gb::Call(call, method, std::forward<Args>(args)...);
+//			}};
+//        }
+//        else
+//        {
+//			co_return co_await RpcCallAwaiter<ResultType>{[&](std::coroutine_handle<> h, ResultType& result) {
+//				call->SetCallBack([&, h](Rets... r) { 
+//					result = std::make_tuple(std::move(r)...);
+//					h.resume(); 
+//				});
+//				call->SetTimeout([&,h]() { h.resume(); });
+//                gb::Call(call, method, std::forward<Args>(args)...);
+//			}};
+//        }
+//    }
+//};
+//
+////默认返回值类型为void
+//template<>
+//struct CoRpcImpl<void>
+//{
+//	template<typename... Args>
+//	static async_simple::coro::Lazy<void> execute(gb::RpcCallPtr call, std::string method, Args... args) noexcept {
+//		co_return co_await RpcCallAwaiter<void>{[&](std::coroutine_handle<> h) {
+//			call->SetCallBack([&,h]() { h.resume(); });
+//            call->SetTimeout([&,h]() { h.resume(); });
+//            gb::Call(call, method, std::forward<Args>(args)...);
+//			}
+//		};
+//	}
+//};
+//
+//
+//
+//template <typename... Rets>
+//struct CoRpcSelector
+//{
+//private:
+//    // Helper for single type case
+//    template <typename T>
+//    using SingleTypeSelector = std::conditional_t<
+//        std::is_void_v<T>,
+//        CoRpcImpl<void>,
+//        CoRpcImpl<T>>;
+//
+//public:
+//    using type = std::conditional_t<
+//        (sizeof...(Rets) > 1),
+//        CoRpcImpl<Rets...>,
+//		SingleTypeSelector<std::conditional_t<(sizeof...(Rets) == 0), void, typename std::tuple_element<0, std::tuple<Rets...>>::type>>>;
+//		//SingleTypeSelector<typename std::tuple_element<0, std::tuple<std::conditional_t<(sizeof...(Rets) == 0), void, Rets>...>>::type>>;
+//        //SingleTypeSelector<typename std::tuple_element<0, std::tuple<Rets...>>::type>>;
+//};
+//
+//template<typename... Rets>
+//using CoRpc = typename CoRpcSelector<Rets...>::type;
+//
 
 
 
