@@ -1,6 +1,6 @@
---require("socket.core")
---local debuger = require "LuaPanda"
---debuger.start("127.0.0.1", 8828)
+require("socket.core")
+local debuger = require "LuaPanda"
+debuger.start("127.0.0.1", 8828)
 
 log.Info("load script ...")
 
@@ -31,7 +31,6 @@ end
 
 net.Register("lua_rpc_test",lua_rpc_test)
 net.Register("lua_rpc_test_args",lua_rpc_test_args)
-
 
 
 

@@ -11,6 +11,7 @@ async_simple::coro::Lazy<> test_coro_2(const gb::SessionPtr& session)
 {
 	gb::RpcCallPtr call = std::make_shared<gb::RpcCall>();
 	call->SetSession(session);
+
     co_await CoRpc<>::execute(call, "test_rpc");
 
     int str = co_await CoRpc<int>::execute(call, "square", 10000);
@@ -74,7 +75,7 @@ int MyApp::OnTick(gb::WorkerPtr worker, float elapsed)
     if (is_net_init)
     {
         is_net_init = false;
-        //SendMsg1(client_);
+        SendMsg1(client_);
         //SendRpc(client_);
         async_simple::coro::syncAwait(test_coro_2(client_->GetSession(gb::CONNECT_TYPE::CT_GATEWAY)));
 
