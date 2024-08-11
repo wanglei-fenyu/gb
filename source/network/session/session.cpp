@@ -59,15 +59,6 @@ void Session::on_closed()
 }
 
 
-void Session::SetIoServicePoolIndex(int index)
-{
-    _io_service_pool_index = index;
-}
-
-int Session::GetIoServicePoolIndex()
-{
-    return _io_service_pool_index;
-}
 
 void Session::Send(const Meta* meta)
 {

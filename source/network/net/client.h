@@ -96,7 +96,7 @@ private:
     FlowControllerPtr _flow_controller;
     
     IoServicePoolPtr _io_service_pool;
-    WorkerPtr         _maintain_thread;
+    IoWorkerPtr         _maintain_thread;
     TimerWorkerPtr _timer_worker;
     
     std::map<Endpoint, SessionPtr> _session_map;

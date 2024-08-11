@@ -1,3 +1,4 @@
+#if 0
 #include "network.h"
 #include "network/session/session.h"
 #include "network/buffer/buffer.h"
@@ -150,3 +151,5 @@ void OnReceived(const gb::SessionPtr& session, const gb::ReadBufferPtr& buffer,i
 	}
 }
 
+
+#endif

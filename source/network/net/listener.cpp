@@ -96,7 +96,7 @@ void Listener::async_accept()
 {
     auto [io_service_index, ios] = _io_service_pool->GetIoService();
     SessionPtr session = std::make_shared<Session>(NET_TYPE::NT_SERVER, ios, Endpoint());
-    session->SetIoServicePoolIndex(io_service_index);
+    //session->SetIoServicePoolIndex(io_service_index);
     if (_create_callback)
         _create_callback(session);
     

@@ -1,7 +1,8 @@
 #pragma once
 #include "app/app.h"
 #include "network/http/server_http.hpp"
-
+#include "common/worker/worker.h"
+#define  SERVER_APP true
 class MyApp :public App
 {
 public:

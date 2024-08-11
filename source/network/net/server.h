@@ -118,7 +118,7 @@ private:
     std::mutex           _session_set_mutex;
     
     TimerWorkerPtr  _timer_worker;
-    WorkerPtr _maintain_thread;
+    IoWorkerPtr _maintain_thread;
 
 private:
     Session::session_received_callback_t  _received_callback;

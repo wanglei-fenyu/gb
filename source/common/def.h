@@ -13,7 +13,7 @@ namespace ec   = boost::system;
 
 #endif 
 
-
+#define USE_MAIN_THREAD  false
 
 
 #if defined(_WIN32)

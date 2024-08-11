@@ -1,5 +1,5 @@
 #include "test.h"
-
+#include "common/worker/worker_manager.h"
 
 void hello(const std::shared_ptr<gb::Session>& session)
 {
@@ -18,7 +18,7 @@ void World(const std::shared_ptr<gb::Session>& session,TestMsg& msg)
 void test_rpc(gb::RpcReply reply)
 {
     LOG_INFO("test_rpc");
-    reply.Invoke("");
+    reply.Invoke();
 }
 
 
@@ -31,6 +31,7 @@ void test_rpc2(int a)
 
 void square(gb::RpcReply reply, int a)
 {
+	LOG_INFO("square {}",a)
 	reply.Invoke(a*a);
 }
 
@@ -47,15 +48,16 @@ void SessionMsg(const gb::SessionPtr& session,TestMsg& msg)
 }
 
 
-void Test_Register(gb::IoServicePoolPtr pool)
+void Test_Register()
 {
-			
-	pool->Post([]()->void{
-		//gb::Listen(1, 2, World);
-        gb::Register("test_rpc", test_rpc);
-		gb::Register("test_rpc2", test_rpc2);
-		gb::Register("square", square);
-		gb::Register("test_ret_args", test_ret_args);
-
-    });
+    auto wm = gb::WorkerManager::Instance();
+	for (auto w : wm->GetWorkers())
+	{
+        w->Post([]() {
+			gb::Register("test_rpc", test_rpc);
+			gb::Register("test_rpc2", test_rpc2);
+			gb::Register("square", square);
+			gb::Register("test_ret_args", test_ret_args);
+        });
+	}
 }

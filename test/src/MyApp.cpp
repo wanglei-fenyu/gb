@@ -11,12 +11,12 @@ async_simple::coro::Lazy<> test_coro_2(const gb::SessionPtr& session)
 {
 	gb::RpcCallPtr call = std::make_shared<gb::RpcCall>();
 	call->SetSession(session);
-    co_await CoRpc<>::execute(call, "test_rpc");
+    //co_await gb::CoRpc<>::execute(call, "test_rpc");
 
-    int str = co_await CoRpc<int>::execute(call, "square", 10000);
-    LOG_INFO("CORO_TEST  {}", str);
+    int num = co_await gb::CoRpc<int>::execute(call, "square", 10000);
+    LOG_INFO("CORO_TEST  {}", num);
 
-    auto [a, b] = co_await CoRpc<int, std::string>::execute(call, "test_ret_args", 2, "world");
+    auto [a, b] = co_await gb::CoRpc<int, std::string>::execute(call, "test_ret_args", 2, "world");
     LOG_INFO("coro_test_2  {} {}", a, b);
 }
 
@@ -26,6 +26,7 @@ int MyApp::OnInit()
 	log.Init(ResPath::Instance()->FindResPath("log4/test.log").c_str(), 1024 * 1024 * 1000, 10,
 		   Hlog::ASYNC, Hlog::CONSOLE_AND_FILE, Hlog::LEVEL_INFO);
 
+    gb::WorkerManager* work_mng = gb::WorkerManager::Instance(4);
     gb::ClientOptions options;
     options.keep_alive_time = -1;
     client_.reset(new gb::Client(options));
@@ -42,14 +43,21 @@ int MyApp::OnInit()
         LOG_INFO("net connect");
         is_net_init = true;
         //session->StartHeartbeat(std::chrono::seconds(2));
+
+        SendMsg1(client_);
+        gb::WorkerManager::Instance()->GetWorker(2)->Post([this]() {
+           //async_simple::coro::syncAwait(test_coro_2(client_->GetSession(gb::CONNECT_TYPE::CT_GATEWAY)));
+           // SendRpc(client_);
+            test_coro_2(client_->GetSession(gb::CONNECT_TYPE::CT_GATEWAY)).start([](auto&&) {});
+            });
     });
+
     
-	client_->SetReceivedCallBack(OnReceived);
+	client_->SetReceivedCallBack(gb::OnReceiveCall);
 
 	auto [ip, port] = AppTypeMgr::Instance()->GetServerIpPort();
 	std::string uir = ip + ":" + port;
     client_->Connect(gb::CONNECT_TYPE::CT_GATEWAY, uir);
-    SetIoServicePool(client_->GetIoServicePool());
     test_http();
     return 0;
 }
@@ -57,14 +65,15 @@ int MyApp::OnInit()
 int MyApp::OnStartup(gb::WorkerPtr worker)
 {
     if (worker)
-        worker->OnStartup();
+        worker->Post([worker]() {worker->OnStartup();});
+      
     return 0;
 }
 
 int MyApp::OnUpdate(gb::WorkerPtr worker)
 {
     if (worker)
-        worker->OnUpdate();
+        worker->Post([worker]() { worker->OnUpdate(); });
     return 0;
 }
 
@@ -75,12 +84,21 @@ int MyApp::OnTick(gb::WorkerPtr worker, float elapsed)
     {
         is_net_init = false;
         //SendMsg1(client_);
-        //SendRpc(client_);
-        async_simple::coro::syncAwait(test_coro_2(client_->GetSession(gb::CONNECT_TYPE::CT_GATEWAY)));
+       // SendRpc(client_);
+  //       auto worker = client_->GetIoServicePool()->GetWorker(client_->GetSession(gb::CONNECT_TYPE::CT_GATEWAY)->GetIoServicePoolIndex());
+		//if (worker.has_value())
+		//{
+  //          worker.value()->Post([this]() mutable
+		//		{
+  //                  async_simple::coro::syncAwait(test_coro_2(client_->GetSession(gb::CONNECT_TYPE::CT_GATEWAY)));
+		//		});
+		//}
+        //
+        // async_simple::coro::syncAwait(test_coro_2(client_->GetSession(gb::CONNECT_TYPE::CT_GATEWAY)));
 
     }
     if (worker)
-        worker->OnTick(elapsed);
+        worker->Post([worker,elapsed]() { worker->OnTick(elapsed); });
     return 0;
 
 }
@@ -88,7 +106,7 @@ int MyApp::OnTick(gb::WorkerPtr worker, float elapsed)
 int MyApp::OnCleanup(gb::WorkerPtr worker)
 {
     if (worker)
-        worker->OnCleanup();
+        worker->Post([worker]() { worker->OnCleanup(); });
     return 0;
 }
 

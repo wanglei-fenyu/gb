@@ -1,24 +1,31 @@
 #include "network.h"
-#include "net/server.h"
-
+#include "common/worker/worker_manager.h"
 NAMESPACE_BEGIN(gb)
 using ListenMap = typename std::unordered_map<uint64_t,net_listen_fun>;
 using RpcInterfaceMap = typename  std::map<uint64_t, rpc_listen_fun>;
-using RpcCallerMap = typename std::map<int,std::map<uint64_t, RpcCallPtr&>>;
-//using RpcCallerMap = typename std::map<uint64_t, RpcCall>;
-//using RpcCallerMap = typename std::map<uint32_t,std::map<uint64_t, RpcCall>>;
+using RpcCallerMap = typename std::map<uint64_t, RpcCallPtr>;
+//using RpcCallerMap = typename std::map<uint32_t,std::map<uint64_t, RpcCallPtr&>>;
 static thread_local ListenMap gs_ListenFunctionMap;
 static thread_local RpcInterfaceMap gs_RpcInterfaceMap;
 static thread_local RpcCallerMap gs_RpcCallerMap;
 static thread_local int32_t gs_sequence_tail = 0;
 
-static std::unique_ptr<Server> gs_Server;
+static std::shared_ptr<Server> gs_Server;
 
 uint64_t GetSequence()
 {
-	std::thread::id id = std::this_thread::get_id();
-	uint32_t thread_id = *((uint32_t*)&id);
-	return (((uint64_t)thread_id) << 32) + (++gs_sequence_tail);
+    auto work = WorkerManager::Instance()->GetCurWorker();
+    if (!work)
+    {
+        LOG_ERROR("cur not work thread");
+        return 0;
+    }
+    uint32_t   thread = work->GetWorkerId();
+    SequenceId Id;
+    Id.value = 0;
+    Id.index = work->GetIndex();
+    Id.seq   = gs_sequence_tail++;
+    return Id.value;
 }
 
 void UnListen(int type, int id, std::string signal, int level)
@@ -55,63 +62,9 @@ void Send(std::shared_ptr<Session> session, int type, int id, google::protobuf::
 void ListenOption(int type, int id, net_listen_fun f, std::string protoName)
 {
 	uint64_t key = (((uint64_t)type) << 32) + id;
-	auto p_FunsIt = gs_ListenFunctionMap[key] = f;
+    gs_ListenFunctionMap[key] = f;
 }
 
-void _Call(Meta& meta, RpcCallPtr call)
-{
-    if (!call)
-    {
-        return;
-    }
-    uint32_t thread_id  = uint32_t(meta.sequence() >> 32);
-    auto&    thread_map = gs_RpcCallerMap[thread_id];
-    if (!thread_map.insert({meta.sequence(), call}).second)
-    {
-        LOG_ERROR("insert gs_RpcCallerMap fail seq:{} method{}", meta.sequence(), meta.method());
-    }
-    //开启计时器
-
-    //调用回调
-    call->Call(meta);
-}
-
-void _Call(Meta& meta, RpcCallPtr call, std::vector<uint8_t>& data)
-{
-    if (!call)
-    {
-        return;
-    }
-    uint32_t thread_id  = uint32_t(meta.sequence() >> 32);
-    auto&    thread_map = gs_RpcCallerMap[thread_id];
-    if (!thread_map.insert({meta.sequence(), call}).second)
-    {
-        LOG_ERROR("insert gs_RpcCallerMap fail seq:{} method{}", meta.sequence(), meta.method());
-    }
-    //开启计时器
-
-    //调用回调
-    call->Call(meta, data);
-}
-
-void _Call(Meta& meta, RpcCallPtr call, std::vector<uint8_t>&& data)
-{
-    if (!call)
-    {
-        return;
-    }
-    uint32_t thread_id  = uint32_t(meta.sequence() >> 32);
-    auto&    thread_map = gs_RpcCallerMap[thread_id];
-    if (!thread_map.insert({meta.sequence(), call}).second)
-    {
-        LOG_ERROR("insert gs_RpcCallerMap fail seq:{} method{}", meta.sequence(), meta.method());
-    }
-    //开启计时器
-
-    //调用回调
-    call->Call(meta, data);
-
-}
 void _Call(RpcCallPtr call, std::string method, sol::variadic_args& args)
 {
     if (!call)
@@ -128,7 +81,11 @@ void _Call(RpcCallPtr call, std::string method, sol::variadic_args& args)
     if (args.size() > 0)
     {
         std::vector<uint8_t> data = gb::msgpack::pack(args);
-        _Call(meta, call, std::move(data));
+        WriteBuffer          write_buffer;
+        write_buffer.Append((const char *)data.data(), data.size());
+		ReadBufferPtr read_buffer(new ReadBuffer());
+        write_buffer.SwapOut(read_buffer.get());
+        _Call(meta, call, read_buffer);
     }
     else
     {
@@ -136,16 +93,28 @@ void _Call(RpcCallPtr call, std::string method, sol::variadic_args& args)
     }
 }
 
-
+void _Call(Meta& meta, RpcCallPtr call, const ReadBufferPtr buffer)
+{
+    if (!call)
+        return;
+	if (!gs_RpcCallerMap.insert({meta.sequence(), call}).second)
+	{
+		LOG_ERROR("insert gs_RpcCallerMap fail seq:{} method{}", meta.sequence(), meta.method());
+	}
+	if (buffer && buffer->TotalCount() > 0)
+	{
+		call->Call(meta, buffer);
+	}
+	else
+	{
+		call->Call(meta);
+	}
+}
 void RpcCancel(int64_t seq_id)
 {
-    uint32_t thread_id  = uint32_t(seq_id >> 32);
-    auto    thread_map = gs_RpcCallerMap.find(thread_id);
-    if (thread_map == gs_RpcCallerMap.end())
-        return;
-    auto thread_rpc = thread_map->second.find(seq_id);
-    if (thread_rpc != thread_map->second.end())
-        thread_map->second.erase(thread_rpc);
+    auto it = gs_RpcCallerMap.find(seq_id);
+    if (it != gs_RpcCallerMap.end())
+		gs_RpcCallerMap.erase(it);
 }
 
 void RegisterOption(std::string method, rpc_listen_fun fn)
@@ -163,66 +132,91 @@ void UnRegister(std::string method)
 
 void Dispatch(const SessionPtr& session, const ReadBufferPtr& buffer, Meta& meta, int meta_size, int64_t data_size)
 {
-    gb::IoServicePoolPtr  io_service_pool = gs_Server->GetIoServicePool();
-    if (!io_service_pool)
-        return;
 	switch (meta.mode())
 	{
     case MsgMode::Msg:
 	{
-		auto worker = io_service_pool->GetWorker(session->GetIoServicePoolIndex());
-		if (!worker.has_value())
-			return;
-		worker.value()->Post([session = session, buffer = buffer ,meta = std::move(meta), meta_size,data_size]() mutable
-			{
-				uint64_t key = (((uint64_t)meta.type()) << 32) + (int)meta.id();
-				auto fun = gs_ListenFunctionMap.find(key);
-				if (fun != gs_ListenFunctionMap.end())
-					fun->second(session, buffer,meta,meta_size,data_size);
-			});
+		auto worker = WorkerManager::Instance()->GetWorker(meta.id() % WorkerManager::Instance()->Size());
+        if (worker)
+        {
+			worker->Post([session = session, buffer = buffer ,meta = std::move(meta), meta_size,data_size]() mutable
+				{
+					uint64_t key = (((uint64_t)meta.type()) << 32) + (int)meta.id();
+					auto fun = gs_ListenFunctionMap.find(key);
+					if (fun != gs_ListenFunctionMap.end())
+						fun->second(session, buffer,meta,meta_size,data_size);
+				});
+        }
+        #if USE_MAIN_THREAD
+        else
+        {
+            uint64_t key = (((uint64_t)meta.type()) << 32) + (int)meta.id();
+            auto     fun = gs_ListenFunctionMap.find(key);
+            if (fun != gs_ListenFunctionMap.end())
+                fun->second(session, buffer, meta, meta_size, data_size);
+        }
+        #endif
 		break;
 	}
 
 	case MsgMode::Request:
     {
-        uint64_t seq       = meta.sequence();
-        uint32_t thread_id = uint32_t(seq >> 32);
-        auto     worker    = io_service_pool->GetWorker(session->GetIoServicePoolIndex());
-        if (worker.has_value())
+		auto worker = WorkerManager::Instance()->GetWorker(meta.id() % WorkerManager::Instance()->Size());
+        if (worker)
         {
-            uint64_t key  = meta.method();
-            auto     func = gs_RpcInterfaceMap.find(key);
-            if (func == gs_RpcInterfaceMap.end())
-                return;
-
-            auto&                f = func->second;
-            std::vector<uint8_t> vec;
-            f(session, buffer, meta, meta_size, data_size);
+            worker->Post([session = session, buffer = buffer ,meta = std::move(meta), meta_size,data_size]() mutable
+                {
+                uint64_t key  = meta.method();
+                auto     func = gs_RpcInterfaceMap.find(key);
+                if (func == gs_RpcInterfaceMap.end())
+                    return;
+                func->second(session, buffer, meta, meta_size, data_size);
+            });
         }
+        #if USE_MAIN_THREAD
+        else
+        {
+            int64_t key  = meta.method();
+            auto     fun = gs_RpcInterfaceMap.find(key);
+            if (fun != gs_RpcInterfaceMap.end())
+				fun->second(session, buffer,meta,meta_size,data_size);
+        }
+        #endif
         break;
     }
-	case MsgMode::Response:
-	{
-		uint64_t seq = meta.sequence();
-		uint32_t thread_id = uint32_t(seq >> 32);
-
-		auto worker = io_service_pool->GetWorker(session->GetIoServicePoolIndex());
-		if (worker.has_value())
-		{
-			std::thread::id id = std::this_thread::get_id();
-			uint32_t this_thread_id = *((uint32_t*)&id);
-			//if (this_thread_id != thread_id)
-			//	return;
-			auto& thread_map = gs_RpcCallerMap[thread_id];
-			auto it = thread_map.find(seq);
-			if (it == thread_map.end())
-				return;
-
-			if(it->second && it->second->HasCallBack())
-				it->second->Done(session,buffer,meta,meta_size,data_size);
-			thread_map.erase(it);
-		}
-		break;
+    case MsgMode::Response:
+    {
+        SequenceId Id;
+        Id.value = meta.sequence();
+		auto worker = WorkerManager::Instance()->GetWorker(Id.index);
+        if (worker)
+        {
+			worker->Post([worker,session = session, buffer = buffer ,meta = std::move(meta), meta_size,data_size]() mutable
+				{
+                    
+					uint32_t   thread = worker->GetWorkerId();
+					uint64_t seq       = meta.sequence();
+					auto  it         = gs_RpcCallerMap.find(seq);
+					if (it == gs_RpcCallerMap.end())
+						return;
+					if (it->second)
+						it->second->Done(session,buffer,meta,meta_size,data_size);
+					gs_RpcCallerMap.erase(it);
+				});
+        }
+        #if USE_MAIN_THREAD
+        else
+        {
+            std::thread::id id        = std::this_thread::get_id();
+            uint32_t        thread_id = *((uint32_t*)&id);
+            auto            it        = gs_RpcCallerMap.find(sequence.value);
+            if (it == gs_RpcCallerMap.end())
+                return;
+            if (it->second)
+                it->second->Done(session, buffer, meta, meta_size, data_size);
+            gs_RpcCallerMap.erase(it);
+        }
+        #endif
 	}
 	default:
 		break;
@@ -230,7 +224,14 @@ void Dispatch(const SessionPtr& session, const ReadBufferPtr& buffer, Meta& meta
 
 }
 
-
+void OnReceiveCall(const SessionPtr& session, const ReadBufferPtr& buffer, int meta_size, int64_t data_size)
+{
+    Meta meta;
+    if (meta.ParseFromBoundedZeroCopyStream(buffer.get(), meta_size))
+    {
+        Dispatch(session, buffer, meta, meta_size, data_size);
+    }
+}
 
 void net_init()
 {
@@ -240,7 +241,7 @@ void net_init()
 	gb::ServerOptions options;
     options.keep_alive_time = -1;
     options.io_service_pool_size = 1;
-    gs_Server               = std::make_unique<gb::Server>(options);
+    gs_Server               = std::make_shared<gb::Server>(options);
     gs_Server->SetAcceptCallBack([](const SessionPtr& session) {
         session->set_return_io_service_pool_fun([]() -> gb::IoServicePoolPtr {
             return gs_Server->GetIoServicePool();
@@ -250,14 +251,7 @@ void net_init()
     gs_Server->SetCloseCallBack([](const SessionPtr& session) {
         LOG_INFO("Close:{}", session->socket().local_endpoint().address().to_string());
     });
-    gs_Server->SetReceivedCallBack([](const SessionPtr& session, const ReadBufferPtr& buffer,int meta_size,int64_t data_size) {
-        Meta meta;
-		if (meta.ParseFromBoundedZeroCopyStream(buffer.get(), meta_size))
-		{
-            Dispatch(session, buffer, meta, meta_size, data_size);
-		}
-		
-    });
+    gs_Server->SetReceivedCallBack(OnReceiveCall);
 	
 	if (!gs_Server->Start(uir))
 	{
@@ -265,15 +259,11 @@ void net_init()
 	}
 }
 
-gb::IoServicePoolPtr net_get_io_service_pool()
+std::shared_ptr<Server>& GetServer()
 {
-    return gs_Server->GetIoServicePool();
+    return gs_Server;
 }
 
-
-//gb::IoServicePoolPtr net_GetIoServicePool()
-//{
-//}
 
 
 NAMESPACE_END

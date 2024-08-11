@@ -1,6 +1,6 @@
 #include "rpc_reply.h"
-
-
+#include "rpc_call.h"
+#include "log/log_help.h"
 namespace gb
 {
 
@@ -20,6 +20,8 @@ void RpcReply::Send(const std::vector<uint8_t>& data)
 {
     if (session_ && Valid())
     {
+        SequenceId Id;
+        Id.value = meta_.sequence();
         session_->Send(&meta_, data);
     }
 }

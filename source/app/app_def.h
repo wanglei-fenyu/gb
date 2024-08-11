@@ -1,6 +1,6 @@
 #pragma once
 #include <map>
-#include "singleton.h"
+#include "../common/singleton.h"
 
 enum APP_TYPE
 {
@@ -42,6 +42,3 @@ public:
 private:
 	std::map<APP_TYPE, std::string> _names;
 };
-
-
-

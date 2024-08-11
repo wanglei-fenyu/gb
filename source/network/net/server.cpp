@@ -44,8 +44,8 @@ bool ServerImpl::Start(std::string_view server_address)
     _io_service_pool.reset(new IoServicePool(_options.io_service_pool_size));
     _io_service_pool->Run();
 
-    _maintain_thread.reset(new Worker());
-    _maintain_thread->Run(false);  //不加载脚本
+    _maintain_thread.reset(new IoWorker());
+    _maintain_thread->Run();  //不加载脚本
 
     
     if (!ResolveAddress(_io_service_pool->GetIoService().second, std::string(server_address), &_listen_endpoint))
