@@ -34,7 +34,6 @@ net.Register("lua_rpc_test_args",lua_rpc_test_args)
 
 
 
-
 function hello(session,message)
     log.Error("xxxxxxxxxxxxxxxxxxxxxx")
     log.Error(message:msg())
