@@ -1,3 +1,4 @@
+#if 0
 #pragma once
 #include "network/network_function.hpp"
 #include "network/rpc/rpc_call.h"
@@ -143,3 +144,5 @@ struct CoRpc
         }
     }
 };
+
+#endif

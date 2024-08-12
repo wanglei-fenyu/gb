@@ -39,6 +39,6 @@ function hello(session,message)
     log.Error(message:msg())
     log.Info("msg:"..message:msg().." index:"..message:index())
     log.Warning(message:index().."")
- --   net.Send(session,1,2,"TestMsg",message)
+    --net.Send(session,1,2,"TestMsg",message)
 end
 net.Listen(1,2,hello,"TestMsg")

@@ -45,8 +45,8 @@ void ClientImpl::Start()
     _io_service_pool.reset(new IoServicePool(_options.work_thread_num));
     _io_service_pool->Run();
 
-    _maintain_thread.reset(new Worker());
-    _maintain_thread->Run(false);  //不加载脚本
+    _maintain_thread.reset(new IoWorker());
+    _maintain_thread->Run();  //不加载脚本
 
 	_timer_worker.reset(new TimerWorker(_maintain_thread->GetIoContext()));
     _timer_worker->set_time_duration(std::chrono::milliseconds(MAINTAIN_INTERVAL_IN_MS));
@@ -171,7 +171,7 @@ gb::SessionPtr ClientImpl::FindOrCreateStream(const Endpoint& remote_endpoint)
         {
 			auto [io_service_index, ios] = _io_service_pool->GetIoService();
             session.reset(new Session(NET_TYPE::NT_CLIENT,ios, remote_endpoint));
-            session->SetIoServicePoolIndex(io_service_index);
+            //session->SetIoServicePoolIndex(io_service_index);
             session->set_flow_controller(_flow_controller);
             session->set_max_pending_buffer_size(_max_pending_buffer_size);
             session->reset_ticks(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - _epoch_time).count(), true);

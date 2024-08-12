@@ -5,7 +5,7 @@
 #include <map>
 #include <vector>
 #include <iostream>
-#include "app_type_mgr.h"
+#include "../app/app_def.h"
 #include "res_path.h"
 #include "singleton.h"
 

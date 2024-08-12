@@ -7,7 +7,7 @@ void hello(TestMsg& msg)
 
 void Test_Register()
 {
-    Listen(1, 2, hello);
+    gb::Listen(1, 2, hello);
 }
 
 void SendMsg1(std::shared_ptr<gb::Client> client)
@@ -23,7 +23,6 @@ void SendMsg1(std::shared_ptr<gb::Client> client)
     meta.set_compress_type(CompressTypeZlib);
 
     client->Send(gb::CONNECT_TYPE::CT_GATEWAY, &meta, &msg);
-	
 }
 
 
@@ -31,13 +30,12 @@ void SendMsg1(std::shared_ptr<gb::Client> client)
 
 void SendRpc(std::shared_ptr<gb::Client> client)
 {
-    gb::RpcCallPtr call = std::make_shared<gb::RpcCall>();
-    call->SetSession(client->GetSession(gb::CONNECT_TYPE::CT_GATEWAY));
-    call->SetCallBack([](int a,std::string str) {
-        LOG_INFO("test lua reply: {} {}",a, str);
-    });
-    ::Call(call, "test_ret_args", 2, "asadsadsadsdaefasgajf中国人大大撒大苏打 ddbgasufgsajbasadsadsadsdaefasgajf中国人大大撒大苏打 ddbgasufgsajbfasvfafasvfa");
-
+	gb::RpcCallPtr call = std::make_shared<gb::RpcCall>();
+	call->SetSession(client->GetSession(gb::CONNECT_TYPE::CT_GATEWAY));
+	call->SetCallBack([](int a,std::string str) {
+		LOG_INFO("test lua reply: {} {}",a, str);
+	});
+	gb::Call(call, "test_ret_args", 2, "asadsadsadsdaefasgajf中国人大大撒大苏打 ddbgasufgsajbasadsadsadsdaefasgajf中国人大大撒大苏打 ddbgasufgsajbfasvfafasvfa");
 	
 }
 

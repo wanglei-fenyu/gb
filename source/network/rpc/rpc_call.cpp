@@ -1,6 +1,6 @@
 #include "rpc_call.h"
 #include "../common_component/timer_help.h"
-
+#include "common/worker/worker_manager.h"
 namespace gb
 {
 extern void RpcCancel(int64_t seq_id);
@@ -22,7 +22,7 @@ void RpcCall::SetTimeout(std::function<void()> timeout_fun, int64_t timeout)
     SetTimeout(timeout);
 };
 
-void RpcCall::SetTimeout(int64_t timeout)
+void RpcCall::SetTimeout(int64_t timeout) 
 {
     timeout_ = std::chrono::milliseconds(timeout);
     if (!timer_ && HasSession()) {
@@ -38,47 +38,38 @@ void RpcCall::SetSession(const std::shared_ptr<Session>& session)
     }
 }
 
-void RpcCall::Call(Meta& meta)
-{   
-    error_code_ = RpcErrorCode::None;
-    if (!session_)
+void RpcCall::Call(Meta& meta, const ReadBufferPtr buffer /*= nullptr*/)
+{
+	error_code_ = RpcErrorCode::None;
+	StartTimer();
+    if (session_)
     {
-        error_code_ = RpcErrorCode::InvalidRequest;
-        RpcCancel(id_);
-        return;
+        if (buffer)
+            session_->Send(&meta, buffer);
+        else
+            session_->Send(&meta);
+
     }
-    StartTimer();
-    session_->Send(&meta);
 }
 
-void RpcCall::Call(Meta& meta, std::vector<uint8_t>& data)
-{
-    error_code_ = RpcErrorCode::None;
-    if (!session_)
-    {
-        error_code_ = RpcErrorCode::InvalidRequest;
-        RpcCancel(id_);
-        return;
-    }
-    StartTimer();
-	session_->Send(&meta, data);
-}
 
 
 void RpcCall::Cancel()
 {
     is_cancel_ = true;
-    if (is_cancel_)
-    {
-		if (timer_ && timer_->expires_from_now() != std::chrono::steady_clock::duration::zero()) {
-			timer_->cancel();
-		}
-        RpcCancel(id_);
-    }
-
+	if (timer_ && timer_->expires_from_now() != std::chrono::steady_clock::duration::zero()) {
+		timer_->cancel();
+	}
+	SequenceId Id;
+    Id.value    = GetId();
+	auto worker = WorkerManager::Instance()->GetWorker(Id.index);
+	if (worker)
+	{
+		worker->Post([self = shared_from_this()]() { RpcCancel(self->GetId()); });
+	}
 }
 
-bool RpcCall::HasCallBack()
+bool RpcCall::HasCallBack() const
 {
     return done_call_bcak_ != nullptr;
 }
@@ -95,13 +86,13 @@ bool RpcCall::HasSession()
 void RpcCall::Done(const SessionPtr& session, const ReadBufferPtr& buffer, Meta& meta, int meta_size, int64_t data_size) const
 {
     // 取消定时器
-    if (timer_)
+    if (timer_ && timer_->expires_from_now() > std::chrono::steady_clock::duration::zero())
     {
         timer_->cancel();
     }
 
 
-    if (is_cancel_)
+    if (is_cancel_ || !HasCallBack())
         return;
     done_call_bcak_(session,buffer,meta, meta_size,data_size);
 }
@@ -118,10 +109,10 @@ RpcErrorCode RpcCall::ErrorCode()
 
 void RpcCall::StartTimer()
 {
-    if (!timer_)
+    if (!session_ || !timer_)
     {
         error_code_ = RpcErrorCode::InvalidRequest;
-        return;
+        Cancel();
     }
     is_cancel_ = false;
     timer_->expires_after(timeout_);
@@ -129,7 +120,14 @@ void RpcCall::StartTimer()
         if (self->is_cancel_ || error == Asio::error::operation_aborted) {
             return;
         }
-		RpcCancel(self->id_);
+        SequenceId Id;
+        Id.value    = self->GetId();
+        auto worker = WorkerManager::Instance()->GetWorker(Id.index);
+		if (worker)
+		{
+			worker->Post([self] {self->Cancel();});
+		}
+
 		LOG_WARN("RPC timeout {}", self->id_);
 		if (!error && !self->is_cancel_ && self->timeout_func_) {
 				self->timeout_func_();

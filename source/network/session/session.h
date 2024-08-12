@@ -48,8 +48,6 @@ protected:
     virtual void on_closed() override;
         
 public:
-    void SetIoServicePoolIndex(int index);
-    int GetIoServicePoolIndex();
     
 
 private:
@@ -62,7 +60,6 @@ private:
     Asio::deadline_timer         _heartbeat_timer;
     duration_t                   _heartbeat_duration;
     std::atomic<bool>            _start_heartbeat;
-    int _io_service_pool_index = -1;
 
 };
 

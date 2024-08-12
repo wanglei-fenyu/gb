@@ -7,33 +7,31 @@ int MyApp::OnInit()
 	log.Init(ResPath::Instance()->FindResPath("log4/test.log").c_str(), 1024 * 1024 * 1000, 10,
 		   Hlog::ASYNC, Hlog::CONSOLE_AND_FILE, Hlog::LEVEL_INFO);
 
+    gb::WorkerManager* work_mng = gb::WorkerManager::Instance(4);
     gb::net_init();
     init_http();
-    
-    SetIoServicePool(gb::net_get_io_service_pool());
-
-    Test_Register(GetIoServicePool());
+    Test_Register();
     return 0;
 }
 
 int MyApp::OnStartup(gb::WorkerPtr worker)
 {
     if (worker)
-        worker->OnStartup();
+        worker->Post([worker]() { worker->OnStartup();});
     return 0;
 }
 
 int MyApp::OnUpdate(gb::WorkerPtr worker)
 {
     if (worker)
-        worker->OnUpdate();
+        worker->Post([worker]() { worker->OnUpdate(); });
     return 0;
 }
 
 int MyApp::OnTick(gb::WorkerPtr worker, float elapsed)
 {
     if (worker)
-        worker->OnTick(elapsed);
+        worker->Post([worker,elapsed]() { worker->OnTick(elapsed); });
     return 0;
 
 }
@@ -41,7 +39,7 @@ int MyApp::OnTick(gb::WorkerPtr worker, float elapsed)
 int MyApp::OnCleanup(gb::WorkerPtr worker)
 {
     if (worker)
-        worker->OnCleanup();
+        worker->Post([worker]() { worker->OnCleanup(); });
     return 0;
 }
 

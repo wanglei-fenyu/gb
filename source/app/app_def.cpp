@@ -1,8 +1,7 @@
-#include "app_type_mgr.h"
-#include "res_path.h"
+#include "app_def.h"
+#include "../common/res_path.h"
 #include "rapidxml/rapidxml.hpp"
 #include "rapidxml/rapidxml_utils.hpp"
-#include "common.h"
 
 AppTypeMgr::AppTypeMgr()
 {
@@ -81,4 +80,3 @@ std::pair<std::string, std::string> AppTypeMgr::GetServerIpPort(int os_type)
 	
 	return { ip,port };
 }
-

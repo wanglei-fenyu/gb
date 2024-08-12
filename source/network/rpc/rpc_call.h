@@ -20,6 +20,17 @@ enum class RpcErrorCode {
     InvalidRequest = 3,
 };
 
+union SequenceId
+{
+    struct
+    {
+        uint64_t index : 32;
+        uint64_t seq : 32;
+    };
+    uint64_t value;
+};
+
+
 class RpcCall : public std::enable_shared_from_this<RpcCall>
 {
 public:
@@ -31,10 +42,10 @@ public:
     void                      SetTimeout(int64_t timeout);
     void                      SetSession(const std::shared_ptr<Session>& session);
     std::shared_ptr<Session>& GetSession() { return session_; }
-    void                      Call(Meta& meta);
-    void                      Call(Meta& meta, std::vector<uint8_t>& data);
+    void                      Call(Meta& meta,const ReadBufferPtr buffer = nullptr);
+    //void                      Call(Meta& meta, std::vector<uint8_t>& data);
     void                      Cancel();
-    bool                      HasCallBack();
+    bool                      HasCallBack() const;
     bool                      HasSession();
     void                      Done(const SessionPtr& session, const ReadBufferPtr& buffer, Meta& meta, int meta_size, int64_t data_size) const;
     bool                      IsError();

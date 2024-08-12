@@ -1,7 +1,6 @@
 #pragma once
 #include "network/network.h"
 #include "protobuf/msg.pb.h"
-#include "network/io_service_pool/io_service_pool.h"
 
 void hello(const std::shared_ptr<gb::Session>& session);
 
@@ -36,4 +35,4 @@ struct test_msg2 : public PACKER_BASE
 };
 
 
-void Test_Register(gb::IoServicePoolPtr pool);
+void Test_Register();
