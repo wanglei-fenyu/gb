@@ -48,7 +48,7 @@ bool ServerImpl::Start(std::string_view server_address)
     _maintain_thread->Run();  //²»¼ÓÔØ½Å±¾
 
     
-    if (!ResolveAddress(_io_service_pool->GetIoService().second, std::string(server_address), &_listen_endpoint))
+    if (!ResolveAddress(_maintain_thread->GetIoContext(), std::string(server_address), &_listen_endpoint))
     {
         NETWORK_LOG("Start(): resolve server address failed: {}", server_address);
         _maintain_thread.reset();
@@ -57,7 +57,7 @@ bool ServerImpl::Start(std::string_view server_address)
         return false;
     }
 
-    _listener.reset(new Listener(_io_service_pool,_listen_endpoint));
+    _listener.reset(new Listener(_maintain_thread->GetIoContext(),_io_service_pool,_listen_endpoint));
     _listener->set_create_callback(asio_bind(&ServerImpl::OnCreated,shared_from_this(),_(1)));
     _listener->set_accept_callback(asio_bind(&ServerImpl::OnAccepted,shared_from_this(),_(1)));
     _listener->set_accept_fail_callback(asio_bind(&ServerImpl::OnAcceptedFailed,shared_from_this(),_(1),_(2)));

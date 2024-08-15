@@ -43,6 +43,22 @@ int MyApp::OnInit()
         LOG_INFO("net connect");
         is_net_init = true;
         //session->StartHeartbeat(std::chrono::seconds(2));
+        
+        auto t1 = gb::WorkerManager::Instance()->GetWorker(2)->GetTimerManager()->RegisterTimer(
+            6000, []() {
+                LOG_ERROR("t1");
+            },
+            false);
+        auto t2 = gb::WorkerManager::Instance()->GetWorker(2)->GetTimerManager()->RegisterTimer(
+            2000, []() {
+                LOG_ERROR("t2");
+            },
+            false);
+        auto t3 = gb::WorkerManager::Instance()->GetWorker(2)->GetTimerManager()->RegisterTimer(
+            10000, []() {
+                LOG_ERROR("t3");
+            },
+            false);
 
         SendMsg1(client_);
         gb::WorkerManager::Instance()->GetWorker(2)->Post([this]() {

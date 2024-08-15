@@ -14,6 +14,7 @@ public:
 	static const int LISTEN_MAX_CONNECTIONS = 4096;
 
 public:
+    Listener(IoService& io, IoServicePoolPtr& io_service_pool, const Endpoint& endpoint);
     Listener(IoServicePoolPtr& io_service_pool, const Endpoint& endpoint);
     virtual ~Listener();
 

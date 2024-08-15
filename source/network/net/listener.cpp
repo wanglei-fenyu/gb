@@ -3,8 +3,15 @@
 
 namespace gb
 {
-
- Listener::Listener(IoServicePoolPtr& io_service_pool, const Endpoint& endpoint) 
+Listener::Listener(IoService& io, IoServicePoolPtr& io_service_pool, const Endpoint& endpoint)
+	 : _io_service_pool(io_service_pool), _ios(io)
+	 , _endpoint(endpoint)
+	// , _ios(io_service_pool->GetIoService().second)
+	 , _acceptor(_ios)
+	 , _is_closed(false)
+{
+}
+Listener::Listener(IoServicePoolPtr& io_service_pool, const Endpoint& endpoint) 
 	 : _io_service_pool(io_service_pool)
 	 , _endpoint(endpoint)
 	 , _ios(io_service_pool->GetIoService().second)
@@ -13,6 +20,16 @@ namespace gb
 {
     RESOURCE_COUNTER_INC(Listener);
 }
+
+//Listener(IoService& ios,IoServicePoolPtr& io_service_pool, const Endpoint& endpoint)
+//     : _ios(ios)
+//     , _io_service_pool(io_service_pool)
+//	 , _endpoint(endpoint)
+//	 , _acceptor(_ios)
+//	 , _is_closed(false)
+//{
+//    RESOURCE_COUNTER_INC(Listener);
+//}
 
  Listener::~Listener()
 {

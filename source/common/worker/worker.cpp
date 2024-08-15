@@ -8,6 +8,7 @@ namespace gb
 Worker::Worker() 
 {
 	scriptPtr_ = std::make_shared<Script>();
+    timer_manager_ = std::make_unique<TimerManager>();
 }
 
 Worker::~Worker() 
@@ -70,7 +71,8 @@ int Worker::OnUpdate()
 
 int Worker::OnTick(float elapsed)
 {
-    
+    if (timer_manager_)
+        timer_manager_->Update();
     return 0;
 }
 
@@ -101,6 +103,11 @@ uint32_t Worker::GetWorkerId()
 uint32_t Worker::GetIndex()
 {
     return index_;
+}
+
+std::unique_ptr<TimerManager>& Worker::GetTimerManager()
+{
+    return timer_manager_;
 }
 
 }
