@@ -5,44 +5,54 @@ namespace gb
 {
 
 void TimerManager::Update()
-{
-	while (!steady_timers_.empty() && steady_timers_.top()->IsExpired())
-	{
+{    
+     while (!steady_timers_.empty()) 
+     {
         auto timer = steady_timers_.top();
-        steady_timers_.pop();
-		if (timer)
-		{
-            (*timer)();
-			if (timer->IsLoop())
-			{
-                timer->Reset();
-                steady_timers_.push(timer);
-			}
-			else
-			{
-                all_timers_.erase(timer->Id());
-			}
-		}
-	}
+        if (!timer->active_) {
+            steady_timers_.pop();
+            all_timers_.erase(timer->Id());  //删除
+            continue;
+        }
 
-	while (!system_timers_.empty() && system_timers_.top()->IsExpired())
-	{
-        auto timer = system_timers_.top();
-        system_timers_.pop();
-		if (timer)
-		{
+        if (timer->IsExpired()) {
+            steady_timers_.pop();
             (*timer)();
-			if (timer->IsLoop())
-			{
+            if (timer->IsLoop()) {
                 timer->Reset();
-                system_timers_.push(timer);
-			}
-			else
-			{
-                all_timers_.erase(timer->Id());
-			}
-		}
-	}
+                steady_timers_.push(timer); // 重新加入循环定时器
+            } else {
+                all_timers_.erase(timer->Id()); // 从全局管理中删除
+            }
+        } 
+        else {
+            break;
+        }
+     }
+
+     while (!system_timers_.empty()) 
+     {
+        auto timer = system_timers_.top();
+        if (!timer->active_) {
+            system_timers_.pop();
+            all_timers_.erase(timer->Id());
+            continue;
+        }
+
+        if (timer->IsExpired()) {
+            system_timers_.pop();
+            (*timer)();
+            if (timer->IsLoop()) {
+                timer->Reset();
+                system_timers_.push(timer); // 重新加入循环定时器
+            } else {
+                all_timers_.erase(timer->Id()); // 从全局管理中删除
+            }
+        } 
+        else {
+            break;
+        }
+     }
 }
 
 int64_t TimerManager::RegisterTimer(int64_t milliseconds, std::function<void()>&& callFunc, bool loop /*= false*/)
@@ -78,8 +88,8 @@ void TimerManager::UnRegisterTimer(int64_t timerId)
 {
 	 auto it = all_timers_.find(timerId);
         if (it != all_timers_.end()) {
-            it->second->Cancel();
-            all_timers_.erase(it);
+            it->second->Cancel(); //先标记为失效
+            //all_timers_.erase(it);
         }
 }
 

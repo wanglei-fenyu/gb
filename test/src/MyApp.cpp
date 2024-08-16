@@ -49,11 +49,12 @@ int MyApp::OnInit()
                 LOG_ERROR("t1");
             },
             false);
+        gb::WorkerManager::Instance()->GetWorker(2)->GetTimerManager()->UnRegisterTimer(t1);
         auto t2 = gb::WorkerManager::Instance()->GetWorker(2)->GetTimerManager()->RegisterTimer(
             2000, []() {
                 LOG_ERROR("t2");
             },
-            false);
+            true);
         auto t3 = gb::WorkerManager::Instance()->GetWorker(2)->GetTimerManager()->RegisterTimer(
             10000, []() {
                 LOG_ERROR("t3");
